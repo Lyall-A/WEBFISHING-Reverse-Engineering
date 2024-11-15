@@ -33,15 +33,18 @@ const packets = [
 
 // // decompress all the gzip data
 // const decompressed = decompress(buffer);
+const decompressed = [
+    Buffer.from("12 00 00 00 03 00 00 00 04 00 00 00 04 00 00 00 74 79 70 65 04 00 00 00 16 00 00 00 61 63 74 6f 72 5f 61 6e 69 6d 61 74 69 6f 6e 5f 75 70 64 61 74 65 00 00 04 00 00 00 08 00 00 00 61 63 74 6f 72 5f 69 64 02 00 00 00 17 ad ce 62 04 00 00 00 04 00 00 00 64 61 74 61 13 00 00 00 21 00 00 00 01 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 00 00 00 00 04 00 00 00 05 00 00 00 65 71 75 69 70 00 00 00 04 00 00 00 00 00 00 00 12 00 00 00 02 00 00 00 04 00 00 00 02 00 00 00 69 64 00 00 04 00 00 00 12 00 00 00 66 69 73 68 5f 6f 63 65 61 6e 5f 6f 63 74 6f 70 75 73 00 00 04 00 00 00 04 00 00 00 73 69 7a 65 03 00 01 00 ec 51 b8 1e 85 3b 57 40 03 00 01 00 9a 99 99 99 99 99 c9 3f 03 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 03 00 01 00 3d 84 ce 0f 9b f4 1b 0f 03 00 01 00 04 00 00 00 00 00 00 00 03 00 01 00 02 00 00 00 00 00 00 00 07 00 00 00 f6 28 f7 42 00 00 88 40 cd cc bc c1 01 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 03 00 00 00 00 00 80 3f 03 00 01 00 f7 ff ff ff ff ff ef 3f 01 00 00 00 00 00 00 00 03 00 01 00 66 66 66 66 66 66 f2 3f 03 00 00 00 00 00 a0 3f 02 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 03 00 00 00 00 00 c0 3f 03 00 01 00 75 77 89 3b f2 00 89 bf 01 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 02 00 00 00 01 00 00 00".split(" ").join(""), "hex")
+];
 
-// // attempt to decode
-// decompressed.forEach(packet => {
-//     const decoded = decode(packet);
+// attempt to decode
+decompressed.forEach(packet => {
+    const decoded = decode(packet);
 
-//     console.log(decoded);
-// });
+    console.log(decoded);
+});
 
-// return;
+return;
 
 const tshark = cp.spawn("C:\\Program Files\\Wireshark\\tshark.exe", "-i WiFi -f udp -T fields -e ip.src -e ip.dst -e data -E separator=, -E header=y".split(" "));
 
@@ -55,11 +58,12 @@ tshark.stdout.on("data", data => {
             const decompressed = decompress(buffer);
             decompressed.forEach(decompressedPacket => {
                 const decoded = decode(decompressedPacket);
-                // console.log(decoded);
+                console.log({ src, dest, decoded });
                 // filter messages
                 const messageIndex = decoded.findIndex(i => i.value == "message") + 2;
                 if (messageIndex > 1) {
-                    console.log(`Found message:`, decoded[messageIndex].value.substring(4));
+                    // console.log(`${src} > ${dest}`);
+                    console.log(`Found message (${src} > ${dest}):`, decoded[messageIndex].value.replace(/%u:? /, ""));
                 }
             });
         } catch (err) { }
@@ -67,7 +71,7 @@ tshark.stdout.on("data", data => {
 });
 
 function decode(buffer, offset = 0) {
-    // console.log(Array.from(buffer).map(i => i.toString(16).padStart(2, "0")).join(" "));
+    console.log(Array.from(buffer).map(i => i.toString(16).padStart(2, "0")).join(" "));
 
     const data = [];
     const unknownData = [];
@@ -156,10 +160,20 @@ function decode(buffer, offset = 0) {
                 type: `${type}???`,
                 value
             });
+        } else
+        if (type === 65539) {
+            // double
+            const value = buffer.readDoubleLE(offset);
+            offset += 8;
+            data.push({
+                type: "double",
+                value,
+            });
         } else {
-            // data.push({
-                // type: `${type}???`
-            // });
+            data.push({
+                type: `${type}???`
+            });
+            // offset += 4; // assume value of type is 4 bytes i guess
             // console.log(`Unknown type '${type}'`);
         }
     }
