@@ -1,7 +1,5 @@
 const zlib = require("zlib");
 const cp = require("child_process");
-const fs = require("fs");
-const readline = require("readline");
 
 // filter sent packets with some spam removed
 // udp && ip.src == 192.168.1.98 && (data.len < 96 || data.len > 157) && data.len != 25 && data.len != 89 && data.len != 198 && data.len != 204 && (data.len < 195 || data.len > 210) && (data.len < 183 || data.len > 184)
@@ -27,24 +25,45 @@ const packets = [
     // "010000000000039dab0008ea930000ee1001b051f34bfc430d0000009b01020000001f8b080000000000000a1362606060076216282ea92c4865818ae5a6161727a6a73260e30b01b16aa9954271766652664aa642497e664e6a09c40c56204ececfc92f829ac901c4696969462966c90630f99cfce4c41c20cdc80001307505f9c5992599f97920fba65b983b29df6e7788ae773e08735f557e1ed87d303d5c50b1f8fcf2bc54a0854c40fe7f2000005786b76bd8000000",
     // "01000000000003f63d000975d00000f00001b139f14bfd2d7d000000c501010000001f8b080000000000000a4d8f5b0ec2201045a9d647a23fd62518d7e11a5c012185b69394873c3eea974b77a6a0e1e3c0e4de9bcbd031c6da8ab83845f719117db49ee309d69076fc6b2037383fa7fb8df47dd631953b2e084f4e8aa8f8a466c9212a5dfa29eb84173a3076c5b9413ae4507cea059967d207081398917b2b7900ed6695bd2de2d5b0e69b6aff006f451e639f475b7a5f49cc109735cbeabf8a315c2bed84f42944abb9115aaddacfdb9167938965477af30b4750b7873c010000",
     // "0001050000001f8b080000000000000a1362606060066216282ea92c4805d162409c985c925f149f9897999b5892999f175f5a909258920a51c70197cf4c6102b20333549561660055250a03694520666480006c343ac6a60e6657517e0ad0a61cb0db4040084a330355ce9a09023bed11ec93fb1991e47990d82c486c26289b1d88d7b98b3815da723968c6cc3884ee266630d90036fffb7f10786f8f6c7e1a187cb287a85b600f3317533f8481cbaf4c50b70000cc65aaf494010000",
-    "0001050000001f8b080000000000000a1362606060066216282ea92c4805d162409c985c925f149f9897999b5892999f175f5a909258920a51c70197cf4c6102b20333549561660055250a0369452066648000726916345a088899a07c109d990261f301715a6671467c4e62766a7c5a517e3ac24fc59955a9cc401377c8b5be0edca1ea0062cf9a09023bed9991ec6304870523030f540cc46641623341d9ec40fcb0ea9be3d9337b1c5a5f4f3b84ee6688990df6203ddfff83c07b7b462473d2c0e013d4ee05f64c58f51f80b9ad0157d8c0f401007064c43bc4010000",
+    // "0001050000001f8b080000000000000a1362606060066216282ea92c4805d162409c985c925f149f9897999b5892999f175f5a909258920a51c70197cf4c6102b20333549561660055250a0369452066648000726916345a088899a07c109d990261f301715a6671467c4e62766a7c5a517e3ac24fc59955a9cc401377c8b5be0edca1ea0062cf9a09023bed9991ec6304870523030f540cc46641623341d9ec40fcb0ea9be3d9337b1c5a5f4f3b84ee6688990df6203ddfff83c07b7b462473d2c0e013d4ee05f64c58f51f80b9ad0157d8c0f401007064c43bc4010000",
 ]
 
-// get random packet
-const buffer = Buffer.from(packets[Math.floor(Math.random() * packets.length)], "hex");
+// // get random packet
+// const buffer = Buffer.from(packets[Math.floor(Math.random() * packets.length)], "hex");
 
-// decompress all the gzip data
-const decompressed = decompress(buffer);
+// // decompress all the gzip data
+// const decompressed = decompress(buffer);
 
-// attempt to decode
-const decoded = decode(decompressed[0]);
+// // attempt to decode
+// decompressed.forEach(packet => {
+//     const decoded = decode(packet);
 
-console.log(decoded);
-// console.log(`Remaining unread data (${decoded[decoded.length - 1].buffer.length}):`, Array.from(decoded[decoded.length - 1].buffer).map(i => i.toString(16).padStart(2, "0")).join(" "));
+//     console.log(decoded);
+// });
 
-return;
-decompressed.forEach(packet => {
-    console.log(decode(packet));
+// return;
+
+const tshark = cp.spawn("C:\\Program Files\\Wireshark\\tshark.exe", "-i WiFi -f udp -T fields -e ip.src -e ip.dst -e data -E separator=, -E header=y".split(" "));
+
+tshark.stdout.on("data", data => {
+    const string = data.toString();
+    string.split("\r\n").forEach(packet => {
+        const [src, dest, data] = packet.split(",");
+        if (!data) return;
+        try {
+            const buffer = Buffer.from(data, "hex");
+            const decompressed = decompress(buffer);
+            decompressed.forEach(decompressedPacket => {
+                // const decoded = decode(decompressedPacket);
+                // console.log(decoded);
+                // filter messages
+                const messageIndex = decoded.findIndex(i => i.value == "message") + 2;
+                if (messageIndex > 1) {
+                    console.log(`Found message:`, decoded[messageIndex].value.substring(4));
+                }
+            });
+        } catch (err) { }
+    });
 });
 
 function decode(buffer, offset = 0) {
@@ -124,7 +143,7 @@ function decode(buffer, offset = 0) {
             offset += 4;
             
             data.push({
-                type: "???",
+                type: `${type}???`,
                 value
             });
         } else
@@ -134,11 +153,14 @@ function decode(buffer, offset = 0) {
             offset += 8;
             
             data.push({
-                type: "???",
+                type: `${type}???`,
                 value
             });
         } else {
-            console.log(`Unknown type '${type}'`);
+            // data.push({
+                // type: `${type}???`
+            // });
+            // console.log(`Unknown type '${type}'`);
         }
     }
 
