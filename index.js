@@ -54,7 +54,7 @@ tshark.stdout.on("data", data => {
             const buffer = Buffer.from(data, "hex");
             const decompressed = decompress(buffer);
             decompressed.forEach(decompressedPacket => {
-                // const decoded = decode(decompressedPacket);
+                const decoded = decode(decompressedPacket);
                 // console.log(decoded);
                 // filter messages
                 const messageIndex = decoded.findIndex(i => i.value == "message") + 2;
